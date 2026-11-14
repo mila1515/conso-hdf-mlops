@@ -1,0 +1,82 @@
+# Exécution planifiée du pipeline (démonstration de l'automatisation).
+# - Tous les jours à 6h UTC : ingestion + monitoring + prévision (réentraînement si alerte)
+# - Le lundi : réentraînement complet
+# L'état (données, modèle, MLflow) est conservé d'une exécution à l'autre via le cache GitHub.
+# Limite : GitHub supprime un cache inutilisé depuis 7 jours. Si le workflow est interrompu plus
+# longtemps, le prochain run repart de zéro (ré-ingestion de l'historique + entraînement), sans erreur.
+name: Pipeline planifié
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      step:
+        description: "Étape à lancer"
+        default: daily
+        type: choice
+        options: [daily, weekly]
+
+# Jamais deux exécutions en parallèle : elles écriraient le même état
+concurrency:
+  group: scheduled-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - run: |
+          pip install -r requirements.lock
+          pip install --no-deps -e .
+          cp .env.example .env
+
+      - name: Restaurer l'état (données, modèle, MLflow)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            data
+            artifacts
+            mlflow.db
+            mlartifacts
+            mlruns
+          key: pipeline-state-${{ github.run_id }}
+          restore-keys: pipeline-state-
+
+      - name: Choisir l'étape
+        id: step
+        run: |
+          if [ -n "${{ inputs.step }}" ]; then echo "name=${{ inputs.step }}" >> $GITHUB_OUTPUT;
+          elif [ "$(date -u +%u)" = "1" ]; then echo "name=weekly" >> $GITHUB_OUTPUT;
+          else echo "name=daily" >> $GITHUB_OUTPUT; fi
+
+      - name: Lancer le pipeline
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: python -m conso_hdf.pipeline ${{ steps.step.outputs.name }}
+
+      - name: Sauvegarder l'état
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data
+            artifacts
+            mlflow.db
+            mlartifacts
+            mlruns
+          key: pipeline-state-${{ github.run_id }}
+
+      - name: Publier les rapports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-${{ github.run_id }}
+          path: reports/

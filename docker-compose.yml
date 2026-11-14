@@ -1,0 +1,69 @@
+# Lance toute la stack : serveur MLflow, pipeline (1re exécution), planificateur quotidien, API et dashboard.
+#   docker compose up --build
+# Puis : API http://localhost:8000/docs · Dashboard http://localhost:8501 · MLflow http://localhost:5000
+
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+  volumes:
+    - ./data:/app/data
+    - ./artifacts:/app/artifacts
+    - ./reports:/app/reports
+
+services:
+  mlflow:
+    # Même version que le client (requirements.lock)
+    image: ghcr.io/mlflow/mlflow:v3.18.0
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+      --serve-artifacts
+    ports: ["5000:5000"]
+    volumes:
+      - ./mlflow_data:/mlflow
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=4)"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  # Première exécution : ingestion + entraînement + prévision
+  pipeline:
+    <<: *app
+    command: python -m conso_hdf.pipeline weekly
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    restart: "no"
+
+  # Exécutions suivantes : daily chaque jour à SCHEDULE_HOUR_UTC, weekly le lundi
+  scheduler:
+    <<: *app
+    command: python -m conso_hdf.pipeline schedule
+    restart: unless-stopped
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+
+  api:
+    <<: *app
+    ports: ["8000:8000"]
+    restart: unless-stopped
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+
+  dashboard:
+    <<: *app
+    command: streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
+    ports: ["8501:8501"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4)"]
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully

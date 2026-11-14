@@ -1,0 +1,6 @@
+-r requirements.txt
+# Versions figées (reproductibilité) : mêmes versions qu'en CI et dans Docker
+-c requirements.lock
+pytest>=8.0,<10
+httpx>=0.27,<1
+ruff>=0.5,<1

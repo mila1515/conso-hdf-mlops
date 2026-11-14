@@ -1,0 +1,25 @@
+# Secrets / config locale
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Données et artefacts générés (re-générables via le pipeline)
+data/
+artifacts/
+reports/
+mlruns/
+mlartifacts/
+mlflow.db
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+mlflow_data/
