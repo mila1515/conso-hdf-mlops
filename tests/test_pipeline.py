@@ -112,3 +112,13 @@ def test_ingestion_with_stale_source_fails(cfg, monkeypatch):
     with pytest.raises(RuntimeError, match="obsolètes"):
         pipeline.ingest_checked()
 
+
+
+def test_weekly_first_run_produces_monitoring_report(cfg, monkeypatch):
+    monkeypatch.setattr(pipeline, "settings", cfg)
+    monkeypatch.setattr(pipeline, "ingest_all", lambda _cfg: None)
+    pipeline.weekly()
+    # Le dashboard lit ce rapport : il doit exister dès le premier lancement (docker compose)
+    assert (cfg.reports_dir / "monitoring_latest.json").exists()
+    preds = pd.read_parquet(cfg.predictions_path)
+    assert preds.simulated.any() and (~preds.simulated).sum() == cfg.forecast_horizon

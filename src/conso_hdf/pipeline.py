@@ -104,6 +104,10 @@ def daily(auto_retrain: bool = True) -> None:
 def weekly() -> None:
     ingest_checked()
     result = train(settings)
+    if not settings.predictions_path.exists():
+        # 1er lancement : prévisions simulées pour que le monitoring ait de quoi mesurer la performance
+        backfill(settings, days=settings.monitoring_days)
+    run_monitoring(settings)  # rapport à jour pour le dashboard et l'API (/monitoring)
     preds = predict_and_store(settings)
     if settings.notify_daily_summary:
         verdict = (
