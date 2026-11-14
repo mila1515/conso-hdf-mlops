@@ -233,8 +233,8 @@ l'API, le dashboard et un **planificateur** (`pipeline schedule`) qui relance `d
 ### 6. Tests et qualité
 
 ```bash
-pytest -q             # 17 tests : features, absence de fuite, pipeline de bout en bout, réentraînement complet,
-                      # champion/challenger, fraîcheur des données, alertes, dérive, API
+pytest -q             # 22 tests : features, absence de fuite, pipeline de bout en bout, réentraînement complet,
+                      # champion/challenger, fraîcheur des données, alertes Discord/Slack, dérive, API
 ruff check src tests dashboard
 ```
 
@@ -245,7 +245,32 @@ ruff check src tests dashboard
   L'état (données, modèle, MLflow) est conservé entre deux exécutions via le cache GitHub,
   et les rapports Evidently sont publiés en artefacts. Limite : un cache inutilisé 7 jours est supprimé
   par GitHub ; le run suivant repart alors de zéro (ré-ingestion + entraînement), sans erreur.
-  Pour recevoir les alertes, ajoutez un secret `ALERT_WEBHOOK_URL` (webhook Discord ou Slack) au dépôt.
+- Un échec de la CI sur `main` ou du pipeline planifié envoie aussi une alerte (avec le lien vers l'exécution).
+
+### 8. Alertes Discord / Slack
+
+| Événement | Sévérité | Envoyé |
+|---|---|---|
+| Données obsolètes (> `MAX_DATA_AGE_HOURS`) | 🔴 critique | toujours |
+| MAPE 7 jours > 5 % (→ réentraînement automatique) | 🔴 critique | toujours |
+| Échec d'une étape du pipeline, du workflow ou de la CI | 🔴 critique | toujours |
+| Dérive des données vs même période des années passées | 🟠 avertissement | toujours |
+| Résumé de l'exécution quotidienne / hebdomadaire (MAPE, dérive, pic prévu, promotion) | 🟢 succès | si `NOTIFY_DAILY_SUMMARY=true` |
+
+**Configuration :**
+1. Créer le webhook :
+   - **Discord** : paramètres du salon → *Intégrations* → *Webhooks* → *Nouveau webhook* → *Copier l'URL du webhook* ;
+   - **Slack** : [api.slack.com/apps](https://api.slack.com/apps) → *Create New App* → *Incoming Webhooks* → *Add New Webhook to Workspace*.
+2. L'ajouter en secret du dépôt GitHub (l'URL ne doit jamais être commitée) :
+   ```bash
+   gh secret set DISCORD_WEBHOOK_URL   # colle l'URL quand elle est demandée
+   gh secret set SLACK_WEBHOOK_URL
+   ```
+   En local / Docker : renseigner les mêmes variables dans `.env`.
+3. Tester : `python -m conso_hdf.pipeline notify-test`, ou dans GitHub *Actions → Pipeline planifié → Run workflow → notify-test*.
+
+Le résumé quotidien est activé par défaut dans GitHub Actions ; pour le couper :
+`gh variable set NOTIFY_DAILY_SUMMARY --body false`.
 
 ---
 
@@ -311,7 +336,8 @@ conso-hdf-mlops/
 │   ├── features.py        # variables calendrier / lags / météo
 │   ├── train.py           # entraînement, MLflow, challenger vs champion
 │   ├── predict.py         # prévision 24 h + backfill
-│   ├── monitoring.py      # performance réelle, dérive Evidently, alertes
+│   ├── monitoring.py      # fraîcheur, performance réelle, dérive Evidently
+│   ├── notify.py          # notifications Discord / Slack
 │   ├── model_store.py     # sauvegarde / chargement du champion (production + évaluation)
 │   ├── metrics.py         # MAE, RMSE, MAPE
 │   ├── pipeline.py        # CLI : ingest | train | predict | backfill | monitor | daily | weekly | schedule

@@ -48,7 +48,12 @@ class Settings:
     drift_share_threshold: float = float(os.getenv("DRIFT_SHARE_THRESHOLD", "0.5"))
     wasserstein_threshold: float = float(os.getenv("WASSERSTEIN_THRESHOLD", "0.5"))
     monitoring_days: int = int(os.getenv("MONITORING_DAYS", "7"))
-    alert_webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "")
+    # Notifications (voir conso_hdf/notify.py) : laisser vide pour désactiver
+    discord_webhook_url: str = os.getenv("DISCORD_WEBHOOK_URL", "")
+    slack_webhook_url: str = os.getenv("SLACK_WEBHOOK_URL", "")
+    alert_webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "")  # ancien réglage (Discord/Slack auto-détecté)
+    # Résumé après chaque exécution daily/weekly (MAPE, dérive, pic prévu...), en plus des alertes
+    notify_daily_summary: bool = os.getenv("NOTIFY_DAILY_SUMMARY", "false").lower() == "true"
     # Âge maximal (h) de la dernière consommation ingérée avant de considérer les données obsolètes
     max_data_age_hours: float = float(os.getenv("MAX_DATA_AGE_HOURS", "36"))
     # Nombre de rapports Evidently HTML conservés dans reports/

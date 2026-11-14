@@ -1,4 +1,4 @@
-.PHONY: install lock ingest train predict backfill monitor daily weekly schedule api dashboard mlflow test lint docker-up docker-down
+.PHONY: install lock ingest train predict backfill monitor daily weekly schedule notify-test api dashboard mlflow test lint docker-up docker-down
 
 install:
 	pip install -r requirements-dev.txt && pip install --no-deps -e .
@@ -31,6 +31,9 @@ weekly:
 
 schedule:
 	python -m conso_hdf.pipeline schedule
+
+notify-test:
+	python -m conso_hdf.pipeline notify-test
 
 api:
 	uvicorn conso_hdf.api.main:app --reload --port 8000

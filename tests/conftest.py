@@ -33,7 +33,11 @@ def cfg(tmp_path) -> Settings:
         test_days=7,
         monitoring_days=3,
         history_start="2020-01-01",
-        alert_webhook_url="",  # jamais de vraie alerte pendant les tests, même si .env en définit une
+        # jamais de vraie notification pendant les tests, même si .env définit des webhooks
+        alert_webhook_url="",
+        discord_webhook_url="",
+        slack_webhook_url="",
+        notify_daily_summary=False,
     )
     c.ensure_dirs()
     make_synthetic_conso().to_parquet(c.conso_path)

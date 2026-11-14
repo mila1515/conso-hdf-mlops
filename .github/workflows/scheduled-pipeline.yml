@@ -1,6 +1,9 @@
-# Exécution planifiée du pipeline (démonstration de l'automatisation).
+# Exécution planifiée du pipeline.
 # - Tous les jours à 6h UTC : ingestion + monitoring + prévision (réentraînement si alerte)
 # - Le lundi : réentraînement complet
+# Notifications Discord / Slack : secrets DISCORD_WEBHOOK_URL et/ou SLACK_WEBHOOK_URL.
+#   - alertes (données obsolètes, performance dégradée, dérive, étape en échec) : toujours
+#   - résumé de chaque exécution : variable de dépôt NOTIFY_DAILY_SUMMARY (true par défaut)
 # L'état (données, modèle, MLflow) est conservé d'une exécution à l'autre via le cache GitHub.
 # Limite : GitHub supprime un cache inutilisé depuis 7 jours. Si le workflow est interrompu plus
 # longtemps, le prochain run repart de zéro (ré-ingestion de l'historique + entraînement), sans erreur.
@@ -15,7 +18,7 @@ on:
         description: "Étape à lancer"
         default: daily
         type: choice
-        options: [daily, weekly]
+        options: [daily, weekly, notify-test]
 
 # Jamais deux exécutions en parallèle : elles écriraient le même état
 concurrency:
@@ -58,8 +61,12 @@ jobs:
           else echo "name=daily" >> $GITHUB_OUTPUT; fi
 
       - name: Lancer le pipeline
+        id: pipeline
         env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          NOTIFY_DAILY_SUMMARY: ${{ vars.NOTIFY_DAILY_SUMMARY || 'true' }}
         run: python -m conso_hdf.pipeline ${{ steps.step.outputs.name }}
 
       - name: Sauvegarder l'état
@@ -80,3 +87,15 @@ jobs:
         with:
           name: rapports-${{ github.run_id }}
           path: reports/
+
+      # Le pipeline alerte lui-même en cas d'échec d'une de ses étapes ; ce filet de sécurité
+      # couvre les échecs en dehors (installation des dépendances, cache, runner...).
+      - name: Alerte si le workflow échoue hors pipeline
+        if: failure() && steps.pipeline.outcome != 'failure'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          TITLE: "conso-hdf : échec du pipeline planifié"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 .github/scripts/notify_failure.py

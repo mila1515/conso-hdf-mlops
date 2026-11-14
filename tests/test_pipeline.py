@@ -94,7 +94,7 @@ def test_forecast_refused_on_stale_data(cfg):
 def test_pipeline_failure_sends_alert(cfg, monkeypatch):
     sent = []
     monkeypatch.setattr(pipeline, "settings", cfg)
-    monkeypatch.setattr(pipeline, "send_alert", lambda _cfg, msg: sent.append(msg))
+    monkeypatch.setattr(pipeline, "send_alert", lambda _cfg, msg, **kw: sent.append(kw["title"] + " " + msg))
 
     def boom(_cfg):
         raise ConnectionError("API ODRÉ indisponible")

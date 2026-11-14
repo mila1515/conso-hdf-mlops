@@ -25,7 +25,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import requests
 from scipy.stats import wasserstein_distance
 
 from conso_hdf.config import Settings, settings
@@ -33,6 +32,7 @@ from conso_hdf.features import CALENDAR_FEATURES, build_features
 from conso_hdf.ingestion import data_freshness, load_data
 from conso_hdf.metrics import regression_metrics
 from conso_hdf.model_store import load_champion
+from conso_hdf.notify import send_alert
 
 log = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", module=r"evidently.*")
@@ -152,16 +152,6 @@ def report_path(cfg: Settings, report: str | None) -> Path | None:
     return cfg.reports_dir / Path(report).name if report else None
 
 
-def send_alert(cfg: Settings, message: str) -> None:
-    log.warning("ALERTE : %s", message)
-    if cfg.alert_webhook_url:
-        try:
-            # "content" = Discord, "text" = Slack / Teams
-            requests.post(cfg.alert_webhook_url, json={"content": message, "text": message}, timeout=10)
-        except requests.RequestException as e:  # l'alerte ne doit jamais faire planter le pipeline
-            log.error("Échec de l'envoi de l'alerte : %s", e)
-
-
 def run_monitoring(cfg: Settings = settings) -> dict:
     cfg.ensure_dirs()
     conso, weather = load_data(cfg)
@@ -203,8 +193,14 @@ def run_monitoring(cfg: Settings = settings) -> dict:
         "retrain_recommended": retrain,
     }
     (cfg.reports_dir / "monitoring_latest.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
+    titles = {"data": "Données obsolètes", "performance": "Performance dégradée", "drift": "Dérive des données"}
     for a in alerts:
-        send_alert(cfg, f"[conso-hdf][{a['severity']}] {a['message']}")
+        fields = {"Modèle": f"v{meta['model_version']}"}
+        if perf_ok:
+            fields[f"MAPE {cfg.monitoring_days} j"] = f"{perf['mape']:.2f} %"
+        if a["type"] == "performance":
+            fields["Réentraînement"] = "oui" if retrain else "non"
+        send_alert(cfg, a["message"], severity=a["severity"], title=f"conso-hdf : {titles[a['type']]}", fields=fields)
     if not alerts:
         log.info("Monitoring OK : %s", {k: perf.get(k) for k in ("mape", "n_hours")})
     return summary
