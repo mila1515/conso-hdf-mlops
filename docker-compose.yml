@@ -1,12 +1,16 @@
 # Lance toute la stack : serveur MLflow, pipeline (1re exécution), planificateur quotidien, API et dashboard.
-#   docker compose up --build
-# Puis : API http://localhost:8000/docs · Dashboard http://localhost:8501 · MLflow http://localhost:5000
+#   docker compose up --build -d
+# Puis : API http://localhost:8700/docs · Dashboard http://localhost:8701 · MLflow http://localhost:8702
+# Ports côté machine modifiables dans .env (API_PORT, DASHBOARD_PORT, MLFLOW_PORT) en cas de conflit.
+
+name: conso-hdf
 
 x-app: &app
   build: .
   env_file: .env
   environment:
     MLFLOW_TRACKING_URI: http://mlflow:5000
+    GIT_PYTHON_REFRESH: quiet  # pas de git dans l'image : évite un avertissement MLflow
   volumes:
     - ./data:/app/data
     - ./artifacts:/app/artifacts
@@ -14,14 +18,16 @@ x-app: &app
 
 services:
   mlflow:
-    # Même version que le client (requirements.lock)
+    # Même version que le client (requirements.lock).
+    # --allowed-hosts : MLflow >= 3.5 rejette (403) les en-têtes Host inconnus, dont le nom de service « mlflow »
     image: ghcr.io/mlflow/mlflow:v3.18.0
     command: >
       mlflow server --host 0.0.0.0 --port 5000
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --artifacts-destination /mlflow/artifacts
       --serve-artifacts
-    ports: ["5000:5000"]
+      --allowed-hosts "mlflow,mlflow:*,localhost,localhost:*,127.0.0.1,127.0.0.1:*"
+    ports: ["${MLFLOW_PORT:-8702}:5000"]
     volumes:
       - ./mlflow_data:/mlflow
     healthcheck:
@@ -35,6 +41,8 @@ services:
   pipeline:
     <<: *app
     command: python -m conso_hdf.pipeline weekly
+    healthcheck:
+      disable: true  # pas de serveur HTTP dans ce conteneur
     depends_on:
       mlflow:
         condition: service_healthy
@@ -44,6 +52,8 @@ services:
   scheduler:
     <<: *app
     command: python -m conso_hdf.pipeline schedule
+    healthcheck:
+      disable: true  # pas de serveur HTTP dans ce conteneur
     restart: unless-stopped
     depends_on:
       pipeline:
@@ -51,7 +61,7 @@ services:
 
   api:
     <<: *app
-    ports: ["8000:8000"]
+    ports: ["${API_PORT:-8700}:8000"]
     restart: unless-stopped
     depends_on:
       pipeline:
@@ -60,7 +70,7 @@ services:
   dashboard:
     <<: *app
     command: streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
-    ports: ["8501:8501"]
+    ports: ["${DASHBOARD_PORT:-8701}:8501"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4)"]

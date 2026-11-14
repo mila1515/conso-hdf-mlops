@@ -174,16 +174,16 @@ Avec `make` : `make ingest`, `make train`, `make daily`, etc.
 ### 2. Explorer les expériences dans MLflow
 
 ```bash
-mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+mlflow ui --backend-store-uri sqlite:///mlflow.db --port 8702
 ```
-→ http://localhost:5000 : comparaison des runs, métriques, graphiques, registre de modèles (alias `champion`).
+→ http://localhost:8702 : comparaison des runs, métriques, graphiques, registre de modèles (alias `champion`).
 
 ### 3. Lancer l'API
 
 ```bash
-uvicorn conso_hdf.api.main:app --reload --port 8000
+uvicorn conso_hdf.api.main:app --reload --port 8700
 ```
-→ Documentation interactive : http://localhost:8000/docs
+→ Documentation interactive : http://localhost:8700/docs
 
 | Endpoint | Description |
 |---|---|
@@ -194,7 +194,7 @@ uvicorn conso_hdf.api.main:app --reload --port 8000
 | `GET /monitoring` | Dernier rapport de monitoring |
 
 ```bash
-curl "http://localhost:8000/forecast?hours=3"
+curl "http://localhost:8700/forecast?hours=3"
 ```
 ```json
 {
@@ -214,21 +214,24 @@ curl "http://localhost:8000/forecast?hours=3"
 ### 4. Lancer le dashboard
 
 ```bash
-streamlit run dashboard/app.py
+streamlit run dashboard/app.py --server.port 8701
 ```
-→ http://localhost:8501
+→ http://localhost:8701
 
 ### 5. Tout lancer avec Docker
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 Lance le serveur MLflow (attendu prêt via un healthcheck), exécute le pipeline une première fois, puis démarre
 l'API, le dashboard et un **planificateur** (`pipeline schedule`) qui relance `daily` chaque jour à
 `SCHEDULE_HOUR_UTC` et `weekly` le lundi, pour que l'API ne serve jamais des données figées :
-- API : http://localhost:8000/docs
-- Dashboard : http://localhost:8501
-- MLflow : http://localhost:5000
+- API : http://localhost:8700/docs
+- Dashboard : http://localhost:8701
+- MLflow : http://localhost:8702
+
+Ports choisis pour éviter les conflits avec les valeurs par défaut (5000, 8000, 8501) souvent déjà prises ;
+modifiables dans `.env` (`API_PORT`, `DASHBOARD_PORT`, `MLFLOW_PORT`).
 
 ### 6. Tests et qualité
 

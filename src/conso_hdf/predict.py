@@ -43,7 +43,7 @@ def forecast(cfg: Settings = settings, hours: int | None = None, allow_stale: bo
     out = pd.DataFrame(
         {
             "target_time": feats.index,
-            "prediction_mw": pred.round(1),
+            "prediction_mw": pred.astype(float).round(1),
             "model_version": meta["model_version"],
             "generated_at": datetime.now(timezone.utc),
             "simulated": False,
@@ -89,7 +89,7 @@ def backfill(cfg: Settings = settings, days: int = 7) -> pd.DataFrame:
     out = pd.DataFrame(
         {
             "target_time": feats.index,
-            "prediction_mw": model.predict(feats[meta["features"]]).round(1),
+            "prediction_mw": model.predict(feats[meta["features"]]).astype(float).round(1),
             "model_version": meta["model_version"],
             "generated_at": feats.index - pd.Timedelta(hours=24),
             "simulated": True,

@@ -36,13 +36,13 @@ notify-test:
 	python -m conso_hdf.pipeline notify-test
 
 api:
-	uvicorn conso_hdf.api.main:app --reload --port 8000
+	uvicorn conso_hdf.api.main:app --reload --port 8700
 
 dashboard:
-	streamlit run dashboard/app.py
+	streamlit run dashboard/app.py --server.port 8701
 
 mlflow:
-	mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+	mlflow ui --backend-store-uri sqlite:///mlflow.db --port 8702
 
 test:
 	pytest -q
