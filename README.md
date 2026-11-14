@@ -229,9 +229,10 @@ l'API, le dashboard et un **planificateur** (`pipeline schedule`) qui relance `d
 - API : http://localhost:8700/docs
 - Dashboard : http://localhost:8701
 - MLflow : http://localhost:8702
+- Evidently UI : http://localhost:8703 (historique des rapports de dérive et graphiques d'évolution)
 
 Ports choisis pour éviter les conflits avec les valeurs par défaut (5000, 8000, 8501) souvent déjà prises ;
-modifiables dans `.env` (`API_PORT`, `DASHBOARD_PORT`, `MLFLOW_PORT`).
+modifiables dans `.env` (`API_PORT`, `DASHBOARD_PORT`, `MLFLOW_PORT`, `EVIDENTLY_PORT`).
 
 ### 6. Tests et qualité
 
@@ -325,7 +326,9 @@ avec uniquement des informations réellement disponibles au moment de la prévis
    webhook avant d'être remontée.
 
 Les rapports HTML Evidently sont enregistrés dans `reports/` (les `REPORTS_KEEP` plus récents sont conservés)
-et consultables depuis le dashboard.
+et consultables depuis le dashboard. Chaque rapport est aussi ajouté au **workspace Evidently** (`evidently_workspace/`),
+consultable dans **Evidently UI** (`make evidently` en local, service `evidently` sur le port 8703 avec Docker) :
+historique complet et graphiques d'évolution (part de variables en dérive, distance de Wasserstein par variable).
 
 ---
 

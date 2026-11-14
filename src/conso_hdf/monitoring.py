@@ -94,8 +94,52 @@ def wasserstein_norm(reference: pd.Series, current: pd.Series) -> float:
     return float(wasserstein_distance(reference, current) / norm)
 
 
+def _evidently_project(cfg: Settings, columns: list[str]):
+    """Workspace + projet Evidently (créés au besoin, avec leurs graphiques d'évolution).
+
+    Serveur Evidently UI (EVIDENTLY_SERVER_URL) s'il est configuré : l'UI garde le workspace en mémoire,
+    il faut donc passer par son API pour que les nouveaux rapports apparaissent sans la redémarrer.
+    Sinon, workspace local (dossier EVIDENTLY_WORKSPACE, lu par `evidently ui` au démarrage)."""
+    from evidently.sdk.models import PanelMetric
+    from evidently.sdk.panels import DashboardPanelPlot
+    from evidently.ui.workspace import RemoteWorkspace, Workspace
+
+    if cfg.evidently_server_url:
+        ws = RemoteWorkspace(cfg.evidently_server_url)
+    else:
+        ws = Workspace.create(str(cfg.evidently_workspace))
+    found = ws.search_project(cfg.evidently_project)
+    if found:
+        return ws, found[0]
+    project = ws.create_project(
+        cfg.evidently_project,
+        description="Dérive des variables (7 derniers jours) vs même période des années précédentes. "
+                    "Distance de Wasserstein normalisée, seuil "
+                    f"{cfg.wasserstein_threshold}.",
+    )
+    project.dashboard.add_panel(DashboardPanelPlot(
+        title="Part des variables en dérive", subtitle="0 = aucune, 1 = toutes", size="half",
+        values=[PanelMetric(legend="Part", metric="DriftedColumnsCount", metric_labels={"value_type": "share"})],
+        plot_params={"plot_type": "line"},
+    ))
+    project.dashboard.add_panel(DashboardPanelPlot(
+        title="Nombre de variables en dérive", size="half",
+        values=[PanelMetric(legend="Nombre", metric="DriftedColumnsCount", metric_labels={"value_type": "count"})],
+        plot_params={"plot_type": "bar"},
+    ))
+    project.dashboard.add_panel(DashboardPanelPlot(
+        title="Distance de Wasserstein par variable", subtitle=f"Dérive au-delà de {cfg.wasserstein_threshold}",
+        size="full",
+        values=[PanelMetric(legend=c, metric="ValueDrift", metric_labels={"column": c}) for c in columns],
+        plot_params={"plot_type": "line"},
+    ))
+    project.save()
+    return ws, project
+
+
 def _save_evidently_report(cfg: Settings, current: pd.DataFrame, reference: pd.DataFrame) -> str | None:
-    """Rapport HTML Evidently (visualisation). Non bloquant : renvoie le nom du fichier, ou None."""
+    """Rapport Evidently : HTML (dashboard Streamlit) + run dans le workspace (Evidently UI).
+    Non bloquant : renvoie le nom du fichier HTML, ou None."""
     try:
         from evidently import Report
         from evidently.presets import DataDriftPreset
@@ -104,10 +148,15 @@ def _save_evidently_report(cfg: Settings, current: pd.DataFrame, reference: pd.D
         snapshot = Report([preset]).run(current_data=current, reference_data=reference)
         name = f"drift_report_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}.html"
         snapshot.save_html(str(cfg.reports_dir / name))
-        return name
     except Exception as e:  # noqa: BLE001 - le rapport visuel ne doit pas bloquer le monitoring
         log.warning("Rapport Evidently non généré : %s", e)
         return None
+    try:
+        ws, project = _evidently_project(cfg, list(current.columns))
+        ws.add_run(project.id, snapshot, include_data=False, name=name.removesuffix(".html"))
+    except Exception as e:  # noqa: BLE001
+        log.warning("Rapport non ajouté au workspace Evidently : %s", e)
+    return name
 
 
 def purge_old_reports(cfg: Settings) -> None:

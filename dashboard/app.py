@@ -106,6 +106,9 @@ else:
         st.write(
             f"Part des variables en dérive : **{drift['drift_share']:.0%}** — {drift['drifted_columns'] or 'aucune'}"
         )
+        st.caption(
+            f"Historique de tous les rapports et évolution de la dérive : [Evidently UI]({settings.evidently_ui_url})"
+        )
         with st.expander("Voir le rapport Evidently complet"):
             path = report_path(settings, drift.get("report"))
             if path is not None and path.exists():

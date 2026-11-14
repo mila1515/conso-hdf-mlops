@@ -50,6 +50,7 @@ jobs:
             mlflow.db
             mlartifacts
             mlruns
+            evidently_workspace
           key: pipeline-state-${{ github.run_id }}
           restore-keys: pipeline-state-
 
@@ -79,6 +80,7 @@ jobs:
             mlflow.db
             mlartifacts
             mlruns
+            evidently_workspace
           key: pipeline-state-${{ github.run_id }}
 
       - name: Publier les rapports

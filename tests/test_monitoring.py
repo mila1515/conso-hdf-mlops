@@ -32,3 +32,20 @@ def test_report_retention_and_relative_path(cfg):
     assert remaining[-1].name.endswith(f"{cfg.reports_keep + 4:06d}.html")
     # Ancien format (chemin absolu d'un autre environnement, ex. Docker) -> résolu dans REPORTS_DIR
     assert report_path(cfg, "/app/reports/drift_report_x.html") == cfg.reports_dir / "drift_report_x.html"
+
+
+def test_drift_report_added_to_evidently_workspace(cfg):
+    from evidently.ui.workspace import Workspace
+
+    from conso_hdf.monitoring import _save_evidently_report
+
+    rng = np.random.default_rng(0)
+    ref = pd.DataFrame({"temperature": rng.normal(10, 2, 500), "lag_24h": rng.normal(6000, 500, 500)})
+    cur = pd.DataFrame({"temperature": rng.normal(5, 2, 168), "lag_24h": rng.normal(6500, 500, 168)})
+    for _ in range(2):
+        name = _save_evidently_report(cfg, cur, ref)
+    assert (cfg.reports_dir / name).exists()
+    ws = Workspace.create(str(cfg.evidently_workspace))
+    (project,) = ws.search_project(cfg.evidently_project)  # un seul projet, réutilisé
+    assert len(ws.list_runs(project.id)) == 2
+    assert len(ws.get_dashboard(project.id).panels) == 3

@@ -15,7 +15,7 @@ COPY dashboard ./dashboard
 RUN pip install --no-cache-dir --no-deps -e .
 
 # Utilisateur non root
-RUN useradd --create-home --uid 1000 app && mkdir -p data artifacts reports && chown -R app /app
+RUN useradd --create-home --uid 1000 app && mkdir -p data artifacts reports evidently_workspace && chown -R app /app
 USER app
 
 EXPOSE 8000

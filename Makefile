@@ -1,4 +1,4 @@
-.PHONY: install lock ingest train predict backfill monitor daily weekly schedule notify-test api dashboard mlflow test lint docker-up docker-down
+.PHONY: evidently install lock ingest train predict backfill monitor daily weekly schedule notify-test api dashboard mlflow test lint docker-up docker-down
 
 install:
 	pip install -r requirements-dev.txt && pip install --no-deps -e .
@@ -40,6 +40,9 @@ api:
 
 dashboard:
 	streamlit run dashboard/app.py --server.port 8701
+
+evidently:
+	evidently ui --workspace evidently_workspace --port 8703
 
 mlflow:
 	mlflow ui --backend-store-uri sqlite:///mlflow.db --port 8702

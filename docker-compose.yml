@@ -1,7 +1,8 @@
 # Lance toute la stack : serveur MLflow, pipeline (1re exécution), planificateur quotidien, API et dashboard.
 #   docker compose up --build -d
 # Puis : API http://localhost:8700/docs · Dashboard http://localhost:8701 · MLflow http://localhost:8702
-# Ports côté machine modifiables dans .env (API_PORT, DASHBOARD_PORT, MLFLOW_PORT) en cas de conflit.
+#        Evidently UI http://localhost:8703
+# Ports côté machine modifiables dans .env (API_PORT, DASHBOARD_PORT, MLFLOW_PORT, EVIDENTLY_PORT).
 
 name: conso-hdf
 
@@ -10,11 +11,14 @@ x-app: &app
   env_file: .env
   environment:
     MLFLOW_TRACKING_URI: http://mlflow:5000
+    # Rapports de dérive envoyés à Evidently UI par son API (visibles sans redémarrage)
+    EVIDENTLY_SERVER_URL: http://evidently:8000
     GIT_PYTHON_REFRESH: quiet  # pas de git dans l'image : évite un avertissement MLflow
   volumes:
     - ./data:/app/data
     - ./artifacts:/app/artifacts
     - ./reports:/app/reports
+    - ./evidently_workspace:/app/evidently_workspace
 
 services:
   mlflow:
@@ -46,6 +50,8 @@ services:
     depends_on:
       mlflow:
         condition: service_healthy
+      evidently:
+        condition: service_healthy
     restart: "no"
 
   # Exécutions suivantes : daily chaque jour à SCHEDULE_HOUR_UTC, weekly le lundi
@@ -58,6 +64,17 @@ services:
     depends_on:
       pipeline:
         condition: service_completed_successfully
+
+  # Evidently UI : historique des rapports de dérive + graphiques d'évolution (alimenté par le monitoring)
+  evidently:
+    <<: *app
+    command: evidently ui --host 0.0.0.0 --port 8000 --workspace /app/evidently_workspace
+    ports: ["${EVIDENTLY_PORT:-8703}:8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/projects', timeout=4)"]
+      interval: 5s
+      retries: 24
 
   api:
     <<: *app

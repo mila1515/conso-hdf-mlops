@@ -69,6 +69,13 @@ class Settings:
     # Artefacts MLflow quand le suivi est local (sqlite) : emplacement explicite et donc
     # identique en local, en CI et dans le cache GitHub Actions.
     mlflow_artifacts_dir: Path = field(default_factory=lambda: _path("MLFLOW_ARTIFACTS_DIR", "mlartifacts"))
+    # Workspace Evidently : historique des rapports de dérive, consultable avec `evidently ui`
+    evidently_workspace: Path = field(default_factory=lambda: _path("EVIDENTLY_WORKSPACE", "evidently_workspace"))
+    evidently_project: str = os.getenv("EVIDENTLY_PROJECT", "conso-hdf – dérive des données")
+    evidently_ui_url: str = os.getenv("EVIDENTLY_UI_URL", "http://localhost:8703")
+    # Si défini (ex. http://evidently:8000 dans docker compose), les rapports sont envoyés au serveur
+    # Evidently UI par son API (visibles immédiatement) au lieu d'être écrits dans EVIDENTLY_WORKSPACE.
+    evidently_server_url: str = os.getenv("EVIDENTLY_SERVER_URL", "")
 
     @property
     def conso_path(self) -> Path:
@@ -93,6 +100,7 @@ class Settings:
             self.predictions_path.parent,
             self.champion_dir,
             self.reports_dir,
+            self.evidently_workspace,
         ):
             p.mkdir(parents=True, exist_ok=True)
 

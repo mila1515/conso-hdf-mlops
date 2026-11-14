@@ -26,6 +26,7 @@ def cfg(tmp_path) -> Settings:
         artifacts_dir=tmp_path / "artifacts",
         reports_dir=tmp_path / "reports",
         mlflow_artifacts_dir=tmp_path / "mlartifacts",
+        evidently_workspace=tmp_path / "evidently_workspace",
         mlflow_tracking_uri=f"sqlite:///{(tmp_path / 'mlflow.db').as_posix()}",
         mlflow_experiment="test",
         model_name="test-model",
